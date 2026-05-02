@@ -38,4 +38,7 @@ SESSION_FILE_PATH.mkdir(exist_ok=True)
 SESSION_COOKIE_AGE = 3600
 
 STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+WSGI_APPLICATION = 'olt_project.wsgi.application'

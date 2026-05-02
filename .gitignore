@@ -43,3 +43,8 @@ dist/
 # Misc
 *.bak
 *.tmp
+
+# Project specific
+.sessions/
+staticfiles/
+sandbox/.fake_olt_host_key
