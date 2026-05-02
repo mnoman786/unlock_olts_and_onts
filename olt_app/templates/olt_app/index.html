@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OLT ONT / ONU Unlock Tool</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<style>
+  :root {
+    --bg:       #0f1117;
+    --bg2:      #181c2a;
+    --bg3:      #1e2438;
+    --bg4:      #252d45;
+    --accent:   #4a9eff;
+    --danger:   #e05555;
+    --success:  #3ecf6e;
+    --warn:     #f9c74f;
+    --text:     #dde2f5;
+    --dim:      #6b7494;
+    --border:   #2a3050;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: 'Consolas', monospace; margin: 0; height: 100vh; display: flex; flex-direction: column; }
+
+  /* ── top bar ── */
+  .topbar { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 10px 20px; display: flex; align-items: center; gap: 14px; flex-shrink: 0; }
+  .topbar .brand { font-size: 1.15rem; font-weight: 700; color: var(--accent); letter-spacing: .04em; }
+  .topbar .badge-vendor { background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: 3px 10px; font-size: .82rem; color: var(--dim); }
+  .topbar .badge-vendor.connected { border-color: var(--success); color: var(--success); }
+
+  /* ── layout ── */
+  .main-layout { display: flex; flex: 1; overflow: hidden; }
+
+  /* ── sidebar ── */
+  .sidebar { width: 300px; min-width: 260px; background: var(--bg2); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow-y: auto; padding: 16px; gap: 12px; flex-shrink: 0; }
+  .sidebar h6 { color: var(--accent); font-size: .78rem; letter-spacing: .1em; text-transform: uppercase; margin: 8px 0 4px; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+  .sidebar label { color: var(--dim); font-size: .82rem; margin-bottom: 2px; }
+  .form-control, .form-select { background: var(--bg3) !important; border: 1px solid var(--border) !important; color: var(--text) !important; font-family: 'Consolas', monospace; font-size: .88rem; padding: 5px 10px; }
+  .form-control:focus, .form-select:focus { border-color: var(--accent) !important; box-shadow: 0 0 0 2px rgba(74,158,255,.15) !important; outline: none; }
+  .form-control::placeholder { color: var(--dim); }
+  .proto-radio label { color: var(--text); font-size: .88rem; cursor: pointer; }
+
+  /* ── buttons ── */
+  .btn-connect  { background: var(--accent);  color: #fff; border: none; width: 100%; padding: 8px; font-weight: 700; letter-spacing: .04em; border-radius: 6px; cursor: pointer; transition: opacity .15s; }
+  .btn-connect:hover  { opacity: .85; }
+  .btn-connect:disabled { opacity: .45; cursor: default; }
+  .btn-unlock   { background: var(--danger); color: #fff; border: none; width: 100%; padding: 8px; font-weight: 700; letter-spacing: .04em; border-radius: 6px; cursor: pointer; transition: opacity .15s; }
+  .btn-unlock:hover   { opacity: .85; }
+  .btn-unlock:disabled { opacity: .35; cursor: default; }
+  .btn-reset    { background: #b35c00; color: #fff; border: none; width: 100%; padding: 8px; font-weight: 700; letter-spacing: .04em; border-radius: 6px; cursor: pointer; transition: opacity .15s; }
+  .btn-reset:hover    { opacity: .85; }
+  .btn-reset:disabled { opacity: .35; cursor: default; }
+  .btn-sm-action { background: var(--bg4); border: 1px solid var(--border); color: var(--text); font-size: .8rem; border-radius: 4px; padding: 3px 10px; cursor: pointer; transition: background .15s; }
+  .btn-sm-action:hover { background: var(--bg3); }
+  .btn-save { background: var(--bg4); border: 1px solid var(--success); color: var(--success); font-size: .82rem; border-radius: 5px; padding: 5px 10px; cursor: pointer; width: 100%; transition: background .15s; }
+  .btn-save:hover { background: rgba(62,207,110,.1); }
+  .btn-save:disabled { opacity: .35; cursor: default; }
+  .btn-disc { background: transparent; border: 1px solid var(--border); color: var(--dim); font-size: .8rem; border-radius: 5px; padding: 4px 10px; cursor: pointer; width: 100%; transition: color .15s; }
+  .btn-disc:hover { color: var(--danger); border-color: var(--danger); }
+
+  .stat-pill { display: inline-block; background: var(--bg3); border: 1px solid var(--border); border-radius: 20px; padding: 2px 10px; font-size: .78rem; color: var(--dim); }
+  .stat-pill.ok { border-color: var(--success); color: var(--success); }
+  .stat-pill.warn { border-color: var(--warn); color: var(--warn); }
+
+  /* ── content area ── */
+  .content { flex: 1; display: flex; flex-direction: column; overflow: hidden; padding: 16px; gap: 10px; }
+
+  /* ── toolbar ── */
+  .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; flex-shrink: 0; }
+  .search-box { background: var(--bg3); border: 1px solid var(--border); color: var(--text); font-family: 'Consolas', monospace; font-size: .88rem; border-radius: 6px; padding: 5px 12px; width: 240px; }
+  .search-box:focus { outline: none; border-color: var(--accent); }
+  .count-badge { color: var(--dim); font-size: .82rem; margin-left: auto; }
+
+  /* ── table ── */
+  .table-wrap { flex: 1; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; }
+  table { width: 100%; border-collapse: collapse; }
+  thead th { background: var(--bg3); color: var(--accent); font-size: .8rem; letter-spacing: .06em; text-transform: uppercase; padding: 9px 12px; position: sticky; top: 0; cursor: pointer; white-space: nowrap; user-select: none; }
+  thead th:hover { background: var(--bg4); }
+  tbody tr { border-bottom: 1px solid var(--border); transition: background .1s; }
+  tbody tr:hover { background: var(--bg3); }
+  tbody td { padding: 8px 12px; font-size: .88rem; }
+  .cb-cell { text-align: center; width: 36px; }
+  .cb-cell input[type=checkbox] { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; }
+  .badge-status { display: inline-block; border-radius: 4px; padding: 1px 7px; font-size: .75rem; font-weight: 600; }
+  .badge-online  { background: rgba(62,207,110,.15); color: var(--success); }
+  .badge-offline { background: rgba(224,85,85,.15);  color: var(--danger);  }
+  .badge-removed { background: rgba(107,116,148,.15); color: var(--dim); text-decoration: line-through; }
+  .badge-unknown { background: rgba(249,199,79,.15);  color: var(--warn);   }
+  .row-removed td { opacity: .45; }
+  .row-removing td { opacity: .6; }
+
+  /* ── log ── */
+  .log-section { flex-shrink: 0; }
+  .log-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+  .log-header span { color: var(--dim); font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; }
+  #log { background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; height: 130px; overflow-y: auto; padding: 8px 12px; font-size: .8rem; line-height: 1.6; }
+  .log-ok   { color: var(--success); }
+  .log-err  { color: var(--danger);  }
+  .log-warn { color: var(--warn);    }
+  .log-info { color: var(--accent);  }
+  .log-dim  { color: var(--dim);     }
+
+  /* ── spinner ── */
+  .spin { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--dim); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; vertical-align: middle; margin-right: 6px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── raw cmd panel ── */
+  .raw-panel { background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; padding: 10px; display: none; }
+  .raw-panel.open { display: block; }
+  .raw-input { background: var(--bg3); border: 1px solid var(--border); color: var(--text); font-family: 'Consolas', monospace; font-size: .85rem; border-radius: 4px; padding: 5px 10px; width: calc(100% - 80px); }
+  .raw-input:focus { outline: none; border-color: var(--accent); }
+  .raw-output { background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 8px; font-size: .78rem; color: var(--dim); max-height: 140px; overflow-y: auto; white-space: pre-wrap; margin-top: 8px; display: none; }
+
+  /* ── modal backdrop ── */
+  .modal-backdrop-custom { position: fixed; inset: 0; background: rgba(0,0,0,.65); z-index: 1000; display: flex; align-items: center; justify-content: center; }
+  .modal-box { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 28px 32px; max-width: 540px; width: 90%; }
+  .modal-box h5 { color: var(--danger); margin-bottom: 14px; }
+  .ont-confirm-list { background: var(--bg3); border-radius: 6px; padding: 10px 14px; max-height: 220px; overflow-y: auto; font-size: .82rem; margin: 10px 0 18px; }
+  .ont-confirm-list .row-item { padding: 3px 0; border-bottom: 1px solid var(--border); }
+  .ont-confirm-list .row-item:last-child { border-bottom: none; }
+  .modal-footer-btns { display: flex; gap: 10px; justify-content: flex-end; }
+  .btn-modal-cancel  { background: var(--bg4); border: 1px solid var(--border); color: var(--text); border-radius: 5px; padding: 7px 20px; cursor: pointer; }
+  .btn-modal-cancel:hover { background: var(--bg3); }
+  .btn-modal-confirm { background: var(--danger); border: none; color: #fff; border-radius: 5px; padding: 7px 20px; font-weight: 700; cursor: pointer; }
+  .btn-modal-confirm:hover { opacity: .85; }
+
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg2); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- ══ TOP BAR ══════════════════════════════════════════════════════════════ -->
+<div class="topbar">
+  <span class="brand"><i class="bi bi-shield-lock-fill"></i> OLT ONT / ONU Unlock Tool</span>
+  <span class="badge-vendor" id="vendorBadge">Not connected</span>
+  <span id="ontCountBadge" class="stat-pill ms-2" style="display:none"></span>
+  <span style="margin-left:auto; color:var(--dim); font-size:.78rem;">Network Administration Tool</span>
+</div>
+
+<!-- ══ MAIN LAYOUT ═══════════════════════════════════════════════════════════ -->
+<div class="main-layout">
+
+  <!-- ── SIDEBAR ─────────────────────────────────────────────────────────── -->
+  <div class="sidebar">
+
+    <h6><i class="bi bi-plug-fill"></i> Connection</h6>
+
+    <div>
+      <label>Host / IP Address</label>
+      <input class="form-control" id="inHost" placeholder="192.168.1.1" autocomplete="off">
+    </div>
+    <div>
+      <label>Port</label>
+      <input class="form-control" id="inPort" placeholder="22 (SSH) / 23 (Telnet)" autocomplete="off">
+    </div>
+    <div>
+      <label>Username</label>
+      <input class="form-control" id="inUser" placeholder="admin" autocomplete="off">
+    </div>
+    <div>
+      <label>Password</label>
+      <input class="form-control" id="inPass" type="password" autocomplete="new-password">
+    </div>
+    <div>
+      <label>Enable / Privileged Password <span style="color:var(--dim)">(optional)</span></label>
+      <input class="form-control" id="inEnable" type="password" autocomplete="new-password">
+    </div>
+
+    <div>
+      <label>Protocol</label>
+      <div class="proto-radio d-flex gap-3 mt-1">
+        <label><input type="radio" name="proto" value="ssh" checked> SSH</label>
+        <label><input type="radio" name="proto" value="telnet"> Telnet</label>
+      </div>
+    </div>
+
+    <div>
+      <label>Vendor <span style="color:var(--dim)">(auto-detect or force)</span></label>
+      <select class="form-select" id="selVendor">
+        <option value="auto">Auto-detect</option>
+        <option value="huawei">Huawei</option>
+        <option value="zte">ZTE</option>
+        <option value="fiberhome">FiberHome</option>
+        <option value="nokia">Nokia / Alcatel-Lucent</option>
+        <option value="calix">Calix</option>
+        <option value="bdcom">BDCOM</option>
+        <option value="vsol">VSOL</option>
+        <option value="generic">Generic (auto-probe)</option>
+      </select>
+    </div>
+
+    <button class="btn-connect" id="btnConnect" onclick="doConnect()">
+      <i class="bi bi-lightning-charge-fill"></i> CONNECT &amp; SCAN
+    </button>
+
+    <hr style="border-color:var(--border); margin:4px 0">
+
+    <h6><i class="bi bi-check2-square"></i> Selection</h6>
+    <div class="d-flex gap-2 flex-wrap">
+      <button class="btn-sm-action" onclick="selectAll()">All</button>
+      <button class="btn-sm-action" onclick="selectNone()">None</button>
+      <button class="btn-sm-action" onclick="selectOnline()">Online only</button>
+      <button class="btn-sm-action" onclick="selectOffline()">Offline only</button>
+    </div>
+
+    <hr style="border-color:var(--border); margin:4px 0">
+
+    <button class="btn-unlock" id="btnUnlock" disabled onclick="openConfirm('unlock')">
+      <i class="bi bi-unlock-fill"></i> UNLOCK SELECTED
+    </button>
+
+    <button class="btn-reset" id="btnReset" disabled onclick="openConfirm('reset')">
+      <i class="bi bi-arrow-counterclockwise"></i> OMCI FACTORY RESET
+    </button>
+
+    <button class="btn-save" id="btnSave" disabled onclick="doSave()">
+      <i class="bi bi-floppy-fill"></i> Save Config on OLT
+    </button>
+
+    <button class="btn-disc" onclick="doDisconnect()">
+      <i class="bi bi-x-circle"></i> Disconnect
+    </button>
+
+    <hr style="border-color:var(--border); margin:4px 0">
+
+    <h6 style="cursor:pointer" onclick="toggleRaw()"><i class="bi bi-terminal-fill"></i> Raw Command</h6>
+    <div class="raw-panel" id="rawPanel">
+      <div class="d-flex gap-2">
+        <input class="raw-input" id="rawCmd" placeholder="e.g. display version" onkeydown="if(event.key==='Enter') sendRaw()">
+        <button class="btn-sm-action" onclick="sendRaw()">Send</button>
+      </div>
+      <div class="raw-output" id="rawOut"></div>
+    </div>
+
+  </div><!-- /sidebar -->
+
+  <!-- ── CONTENT ──────────────────────────────────────────────────────────── -->
+  <div class="content">
+
+    <!-- toolbar -->
+    <div class="toolbar">
+      <i class="bi bi-search" style="color:var(--dim)"></i>
+      <input class="search-box" id="searchBox" placeholder="Filter by serial / port / status…" oninput="filterTable()">
+      <span class="count-badge" id="countBadge">0 ONTs loaded</span>
+    </div>
+
+    <!-- table -->
+    <div class="table-wrap">
+      <table id="ontTable">
+        <thead>
+          <tr>
+            <th class="cb-cell"><input type="checkbox" id="chkAll" onchange="toggleAll(this)"></th>
+            <th onclick="sortTable(1)">Serial Number <i class="bi bi-arrow-down-up"></i></th>
+            <th onclick="sortTable(2)">Port (F/S/P) <i class="bi bi-arrow-down-up"></i></th>
+            <th onclick="sortTable(3)">ONT ID <i class="bi bi-arrow-down-up"></i></th>
+            <th onclick="sortTable(4)">Status <i class="bi bi-arrow-down-up"></i></th>
+            <th onclick="sortTable(5)">Vendor <i class="bi bi-arrow-down-up"></i></th>
+          </tr>
+        </thead>
+        <tbody id="ontBody">
+          <tr><td colspan="6" style="text-align:center; color:var(--dim); padding:40px">
+            Connect to an OLT to see ONT/ONU list
+          </td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- log -->
+    <div class="log-section">
+      <div class="log-header">
+        <span><i class="bi bi-journal-text"></i> Activity Log</span>
+        <button class="btn-sm-action" onclick="clearLog()">Clear</button>
+      </div>
+      <div id="log"></div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /main-layout -->
+
+<!-- ══ CONFIRM MODAL ══════════════════════════════════════════════════════════ -->
+<div class="modal-backdrop-custom" id="confirmModal" style="display:none">
+  <div class="modal-box">
+    <h5 id="confirmTitle"><i class="bi bi-exclamation-triangle-fill"></i> Confirm</h5>
+    <p id="confirmDesc" style="color:var(--dim); font-size:.88rem"></p>
+    <div class="ont-confirm-list" id="confirmList"></div>
+    <p id="confirmNote" style="color:var(--warn); font-size:.82rem">
+      <i class="bi bi-info-circle"></i>
+      <span id="confirmNoteText"></span>
+    </p>
+    <div class="modal-footer-btns">
+      <button class="btn-modal-cancel" onclick="closeConfirm()">Cancel</button>
+      <button class="btn-modal-confirm" id="btnConfirmGo">Go</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════ State ══════════════════════
+let _onts     = [];          // full list from last scan
+let _vendor   = '';
+let _working  = false;
+
+const VENDOR_ICONS = {
+  huawei:    '🔴 Huawei',
+  zte:       '🟢 ZTE',
+  fiberhome: '🔵 FiberHome',
+  nokia:     '🟣 Nokia / ALU',
+  calix:     '🟡 Calix',
+  bdcom:     '🟠 BDCOM',
+  vsol:      '⚪ VSOL',
+  dasan:     '🟤 Dasan',
+  generic:   '⚙ Unknown',
+};
+
+// ═══════════════════════════════════════════════ Log ════════════════════════
+function log(msg, cls='') {
+  const d = document.getElementById('log');
+  const line = document.createElement('div');
+  if (cls) line.className = 'log-'+cls;
+  const ts = new Date().toLocaleTimeString();
+  line.textContent = `[${ts}] ${msg}`;
+  d.appendChild(line);
+  d.scrollTop = d.scrollHeight;
+}
+function clearLog() { document.getElementById('log').innerHTML = ''; }
+
+// ═══════════════════════════════════════════════ Connect ════════════════════
+async function doConnect() {
+  if (_working) return;
+  const host   = document.getElementById('inHost').value.trim();
+  const port   = document.getElementById('inPort').value.trim();
+  const user   = document.getElementById('inUser').value.trim();
+  const pass   = document.getElementById('inPass').value;
+  const enable = document.getElementById('inEnable').value;
+  const proto  = document.querySelector('input[name=proto]:checked').value;
+  const vendor = document.getElementById('selVendor').value;
+
+  if (!host || !user) { log('Host and username are required.', 'err'); return; }
+
+  setBusy(true, 'btnConnect', '<span class="spin"></span> Connecting & scanning…');
+  log(`Connecting to ${host} via ${proto.toUpperCase()}…`, 'info');
+
+  try {
+    const res = await post('/api/connect/', {host, port, username:user, password:pass,
+                                              enable_password:enable, protocol:proto, vendor});
+    if (!res.ok) { log('ERROR: ' + res.error, 'err'); return; }
+
+    _vendor = res.vendor_key;
+    const vLabel = VENDOR_ICONS[res.vendor_key] || res.vendor_name;
+    log(`Connected. Vendor: ${vLabel}`, 'ok');
+    log(`Banner: ${res.banner.substring(0,120)}…`, 'dim');
+    log(`Found ${res.onts.length} ONT(s).`, res.onts.length ? 'ok' : 'warn');
+
+    const vBadge = document.getElementById('vendorBadge');
+    vBadge.textContent = vLabel;
+    vBadge.className = 'badge-vendor connected';
+
+    _onts = res.onts;
+    renderTable(_onts);
+    document.getElementById('btnSave').disabled = false;
+    updateUnlockBtn();
+  } catch(e) {
+    log('Connection failed: ' + e, 'err');
+  } finally {
+    setBusy(false, 'btnConnect', '<i class="bi bi-lightning-charge-fill"></i> CONNECT &amp; SCAN');
+  }
+}
+
+// ═══════════════════════════════════════════════ Table ══════════════════════
+function renderTable(onts) {
+  const vLabel = VENDOR_ICONS[_vendor] || _vendor;
+  const tbody = document.getElementById('ontBody');
+  if (!onts.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--dim);padding:30px">No ONTs found on this OLT.</td></tr>';
+    document.getElementById('countBadge').textContent = '0 ONTs';
+    const p = document.getElementById('ontCountBadge');
+    p.textContent = '0 ONTs'; p.style.display='none';
+    return;
+  }
+  tbody.innerHTML = onts.map((o, i) => {
+    const st = o.status.toLowerCase();
+    const sc = st.includes('online') ? 'online' : st.includes('offline') ? 'offline' : 'unknown';
+    return `<tr id="row_${i}" data-idx="${i}" data-sn="${o.sn}" data-status="${st}">
+      <td class="cb-cell"><input type="checkbox" class="ont-cb" data-idx="${i}" onchange="onCheck(${i})"></td>
+      <td style="font-weight:600; letter-spacing:.03em">${o.sn}</td>
+      <td>${o.port}</td>
+      <td style="text-align:center">${o.ont_id}</td>
+      <td><span class="badge-status badge-${sc}">${o.status}</span></td>
+      <td style="color:var(--dim)">${vLabel}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('countBadge').textContent = `${onts.length} ONT(s)`;
+  const p = document.getElementById('ontCountBadge');
+  p.textContent = `${onts.length} ONTs`;
+  p.className = 'stat-pill ok';
+  p.style.display = 'inline-block';
+}
+
+function filterTable() {
+  const q = document.getElementById('searchBox').value.toLowerCase();
+  let vis = 0;
+  document.querySelectorAll('#ontBody tr[data-idx]').forEach(row => {
+    const match = !q || row.textContent.toLowerCase().includes(q);
+    row.style.display = match ? '' : 'none';
+    if (match) vis++;
+  });
+  document.getElementById('countBadge').textContent = `${vis} ONT(s)`;
+}
+
+function sortTable(col) {
+  const tbody = document.getElementById('ontBody');
+  const rows  = Array.from(tbody.querySelectorAll('tr[data-idx]'));
+  const asc   = tbody.dataset.sortCol == col && tbody.dataset.sortDir == 'asc';
+  rows.sort((a, b) => {
+    const ta = a.cells[col].textContent.trim();
+    const tb = b.cells[col].textContent.trim();
+    return asc ? tb.localeCompare(ta) : ta.localeCompare(tb);
+  });
+  rows.forEach(r => tbody.appendChild(r));
+  tbody.dataset.sortCol = col;
+  tbody.dataset.sortDir = asc ? 'desc' : 'asc';
+}
+
+// ═══════════════════════════════════════════════ Selection ══════════════════
+function onCheck(idx) {
+  updateUnlockBtn();
+}
+function toggleAll(cb) {
+  document.querySelectorAll('.ont-cb').forEach(c => {
+    const row = document.getElementById('row_'+c.dataset.idx);
+    if (row && row.style.display !== 'none') c.checked = cb.checked;
+  });
+  updateUnlockBtn();
+}
+function selectAll()     { document.querySelectorAll('.ont-cb').forEach(c => { if (visibleRow(c)) c.checked = true; }); updateUnlockBtn(); }
+function selectNone()    { document.querySelectorAll('.ont-cb').forEach(c => c.checked = false); updateUnlockBtn(); }
+function selectOnline()  { document.querySelectorAll('.ont-cb').forEach(c => { const r = document.getElementById('row_'+c.dataset.idx); c.checked = r && r.dataset.status.includes('online'); }); updateUnlockBtn(); }
+function selectOffline() { document.querySelectorAll('.ont-cb').forEach(c => { const r = document.getElementById('row_'+c.dataset.idx); c.checked = r && r.dataset.status.includes('offline'); }); updateUnlockBtn(); }
+function visibleRow(cb)  { const r = document.getElementById('row_'+cb.dataset.idx); return r && r.style.display !== 'none'; }
+
+function getSelected() {
+  return Array.from(document.querySelectorAll('.ont-cb:checked')).map(c => parseInt(c.dataset.idx));
+}
+function updateUnlockBtn() {
+  const n = getSelected().length;
+  const btnU = document.getElementById('btnUnlock');
+  const btnR = document.getElementById('btnReset');
+  btnU.disabled = n === 0 || _working;
+  btnR.disabled = n === 0 || _working;
+  btnU.innerHTML = n > 0
+    ? `<i class="bi bi-unlock-fill"></i> UNLOCK ${n} SELECTED`
+    : `<i class="bi bi-unlock-fill"></i> UNLOCK SELECTED`;
+  btnR.innerHTML = n > 0
+    ? `<i class="bi bi-arrow-counterclockwise"></i> OMCI RESET ${n} SELECTED`
+    : `<i class="bi bi-arrow-counterclockwise"></i> OMCI FACTORY RESET`;
+}
+
+// ═══════════════════════════════════════════════ Confirm modal ══════════════
+let _pendingAction = 'unlock';
+
+function openConfirm(action) {
+  _pendingAction = action;
+  const idxs = getSelected();
+  if (!idxs.length) return;
+
+  const isReset = action === 'reset';
+  document.getElementById('confirmTitle').innerHTML = isReset
+    ? '<i class="bi bi-arrow-counterclockwise"></i> Confirm OMCI Factory Reset'
+    : '<i class="bi bi-exclamation-triangle-fill"></i> Confirm Unlock';
+  document.getElementById('confirmDesc').innerHTML = isReset
+    ? `You are about to send an <strong style="color:#f9a825">OMCI factory reset</strong> to the following ONT(s).<br>
+       The ONT will <strong>reboot</strong> and all OMCI configuration (VLANs, GEM ports) will be wiped.<br>
+       Use this when the ONT was previously on a different vendor OLT and has stuck config.`
+    : `You are about to <strong style="color:var(--danger)">remove</strong> the following ONT(s) from this OLT.<br>
+       They will lose their current registration and can then connect to any other OLT.`;
+  document.getElementById('confirmNoteText').textContent = isReset
+    ? 'Reset is sent one by one. The ONT will go offline briefly while rebooting (~30–60 sec).'
+    : 'ONTs are removed one by one to avoid disrupting the OLT. This cannot be undone automatically.';
+
+  const btn = document.getElementById('btnConfirmGo');
+  btn.style.background = isReset ? '#b35c00' : 'var(--danger)';
+  btn.innerHTML = isReset
+    ? '<i class="bi bi-arrow-counterclockwise"></i> Send Factory Reset'
+    : '<i class="bi bi-unlock-fill"></i> Remove & Unlock';
+  btn.onclick = isReset ? doReset : doUnlock;
+
+  const list = document.getElementById('confirmList');
+  list.innerHTML = idxs.map(i => {
+    const o = _onts[i];
+    const st = o.status.toLowerCase();
+    const sc = st.includes('online') ? 'online' : st.includes('offline') ? 'offline' : 'unknown';
+    return `<div class="row-item">
+      <strong>${o.sn}</strong>
+      &nbsp; Port: ${o.port} &nbsp; ID: ${o.ont_id}
+      &nbsp; <span class="badge-status badge-${sc}">${o.status}</span>
+    </div>`;
+  }).join('');
+  document.getElementById('confirmModal').style.display = 'flex';
+}
+function closeConfirm() {
+  document.getElementById('confirmModal').style.display = 'none';
+}
+
+// ═══════════════════════════════════════════════ Unlock ═════════════════════
+async function doUnlock() {
+  closeConfirm();
+  const idxs = getSelected();
+  if (!idxs.length || _working) return;
+
+  setBusy(true, 'btnUnlock', '<span class="spin"></span> Unlocking…');
+  _working = true;
+  document.getElementById('btnConnect').disabled = true;
+
+  let ok = 0, fail = 0;
+
+  for (let i = 0; i < idxs.length; i++) {
+    const idx = idxs[i];
+    const o   = _onts[idx];
+    const row = document.getElementById('row_'+idx);
+    log(`[${i+1}/${idxs.length}] Removing SN ${o.sn}  port ${o.port}  ID ${o.ont_id} …`, 'info');
+
+    if (row) row.classList.add('row-removing');
+
+    try {
+      const res = await post('/api/delete/', {
+        sn: o.sn, port_n: o.port_n, slot: o.slot,
+        frame: o.frame, ont_id: o.ont_id,
+      });
+      if (res.ok) {
+        ok++;
+        log(`  ✓ SN ${o.sn} removed.`, 'ok');
+        if (row) {
+          row.classList.remove('row-removing');
+          row.classList.add('row-removed');
+          const statusCell = row.cells[4];
+          statusCell.innerHTML = '<span class="badge-status badge-removed">REMOVED</span>';
+          row.querySelector('.ont-cb').checked = false;
+          row.querySelector('.ont-cb').disabled = true;
+        }
+      } else {
+        fail++;
+        log(`  ✗ SN ${o.sn} — ${res.error || 'no confirmation'}`, 'warn');
+        if (row) row.classList.remove('row-removing');
+      }
+    } catch(e) {
+      fail++;
+      log(`  ✗ SN ${o.sn} ERROR: ${e}`, 'err');
+      if (row) row.classList.remove('row-removing');
+    }
+
+    // Wait 1.5s between deletions — don't flood the OLT
+    if (i < idxs.length - 1) await sleep(1500);
+  }
+
+  log(`Done.  Removed: ${ok}  |  Failed/unconfirmed: ${fail}`,
+      fail === 0 ? 'ok' : 'warn');
+
+  _working = false;
+  document.getElementById('btnConnect').disabled = false;
+  setBusy(false, 'btnUnlock', '<i class="bi bi-unlock-fill"></i> UNLOCK SELECTED');
+  updateUnlockBtn();
+}
+
+// ═══════════════════════════════════════════════ OMCI Reset ═════════════════
+async function doReset() {
+  closeConfirm();
+  const idxs = getSelected();
+  if (!idxs.length || _working) return;
+
+  setBusy(true, 'btnReset', '<span class="spin"></span> Resetting…');
+  _working = true;
+  document.getElementById('btnConnect').disabled = true;
+
+  let ok = 0, fail = 0;
+  for (let i = 0; i < idxs.length; i++) {
+    const idx = idxs[i];
+    const o   = _onts[idx];
+    const row = document.getElementById('row_'+idx);
+    log(`[${i+1}/${idxs.length}] OMCI factory reset SN ${o.sn}  port ${o.port}  ID ${o.ont_id} …`, 'info');
+    if (row) row.classList.add('row-removing');
+    try {
+      const res = await post('/api/reset/', {
+        sn: o.sn, port_n: o.port_n, slot: o.slot, frame: o.frame, ont_id: o.ont_id,
+      });
+      if (res.ok) {
+        ok++;
+        log(`  ✓ SN ${o.sn} — reset command sent. ONT will reboot in ~5 sec.`, 'ok');
+        if (row) {
+          row.classList.remove('row-removing');
+          row.cells[4].innerHTML = '<span class="badge-status badge-unknown">RESETTING</span>';
+        }
+      } else {
+        fail++;
+        log(`  ✗ SN ${o.sn} — ${res.error || 'no confirmation'}`, 'warn');
+        if (row) row.classList.remove('row-removing');
+      }
+    } catch(e) {
+      fail++;
+      log(`  ✗ SN ${o.sn} ERROR: ${e}`, 'err');
+      if (row) row.classList.remove('row-removing');
+    }
+    if (i < idxs.length - 1) await sleep(1500);
+  }
+
+  log(`Reset done.  Sent: ${ok}  |  Failed: ${fail}`, fail === 0 ? 'ok' : 'warn');
+  log('ONTs will come back online in 30–60 seconds after rebooting.', 'dim');
+
+  _working = false;
+  document.getElementById('btnConnect').disabled = false;
+  setBusy(false, 'btnReset', '<i class="bi bi-arrow-counterclockwise"></i> OMCI FACTORY RESET');
+  updateUnlockBtn();
+}
+
+// ═══════════════════════════════════════════════ Save / Disconnect ══════════
+async function doSave() {
+  log('Saving configuration on OLT…', 'info');
+  try {
+    const res = await post('/api/save/', {});
+    log(res.ok ? 'Config saved.' : 'Save error: '+res.error, res.ok ? 'ok' : 'err');
+  } catch(e) { log('Save error: '+e, 'err'); }
+}
+
+async function doDisconnect() {
+  await post('/api/disconnect/', {});
+  _onts = []; _vendor = '';
+  document.getElementById('vendorBadge').textContent = 'Not connected';
+  document.getElementById('vendorBadge').className = 'badge-vendor';
+  document.getElementById('ontCountBadge').style.display = 'none';
+  document.getElementById('ontBody').innerHTML =
+    '<tr><td colspan="6" style="text-align:center;color:var(--dim);padding:40px">Connect to an OLT to see ONT/ONU list</td></tr>';
+  document.getElementById('btnSave').disabled = true;
+  document.getElementById('btnUnlock').disabled = true;
+  log('Disconnected.', 'dim');
+}
+
+// ═══════════════════════════════════════════════ Raw command ════════════════
+function toggleRaw() {
+  document.getElementById('rawPanel').classList.toggle('open');
+}
+async function sendRaw() {
+  const cmd = document.getElementById('rawCmd').value.trim();
+  if (!cmd) return;
+  const out = document.getElementById('rawOut');
+  out.style.display = 'block';
+  out.textContent = 'Sending…';
+  try {
+    const res = await post('/api/raw/', {command: cmd});
+    out.textContent = res.ok ? res.output : 'ERROR: ' + res.error;
+  } catch(e) { out.textContent = 'Error: '+e; }
+}
+
+// ═══════════════════════════════════════════════ Helpers ════════════════════
+function getBusy(id) { return document.getElementById(id).disabled; }
+function setBusy(busy, id, html) {
+  const btn = document.getElementById(id);
+  btn.disabled = busy;
+  btn.innerHTML = html;
+}
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+async function post(url, data) {
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken')},
+    body: JSON.stringify(data),
+  });
+  return r.json();
+}
+function getCookie(name) {
+  const v = document.cookie.match('(^|;)\\s*'+name+'\\s*=\\s*([^;]+)');
+  return v ? v.pop() : '';
+}
+
+// Get CSRF token on load
+document.addEventListener('DOMContentLoaded', async () => {
+  // Django sets csrftoken cookie on GET request
+  await fetch('/');
+});
+
+// Enter key on host/port/user/pass triggers connect
+['inHost','inPort','inUser','inPass'].forEach(id => {
+  document.getElementById(id).addEventListener('keydown', e => {
+    if (e.key === 'Enter') doConnect();
+  });
+});
+
+// Proto change → update default port
+document.querySelectorAll('input[name=proto]').forEach(r => {
+  r.addEventListener('change', () => {
+    const p = document.getElementById('inPort');
+    if (!p.value || p.value === '22' || p.value === '23') {
+      p.value = r.value === 'ssh' ? '22' : '23';
+    }
+  });
+});
+</script>
+</body>
+</html>
