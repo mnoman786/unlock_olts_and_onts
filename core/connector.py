@@ -175,7 +175,7 @@ class OLTConnection:
                             break
                 else:
                     time.sleep(0.2)
-            except EOFError:
+            except (EOFError, OSError):
                 break
         return output.decode('utf-8', errors='replace')
 
