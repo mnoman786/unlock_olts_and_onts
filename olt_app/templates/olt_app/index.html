@@ -128,6 +128,22 @@
   ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track { background: var(--bg2); }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* ── tabs ── */
+  .tab-btn { background: var(--bg3); border: 1px solid var(--border); color: var(--dim); font-family: 'Consolas', monospace; font-size: .82rem; border-radius: 6px; padding: 5px 14px; cursor: pointer; transition: all .15s; }
+  .tab-btn:hover { color: var(--text); border-color: var(--accent); }
+  .tab-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+
+  /* ── direct ONT panel ── */
+  .ont-status-box { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; font-size: .85rem; }
+  .ont-status-box.connected { border-color: var(--success); }
+  .ont-info-out { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px; font-size: .78rem; color: var(--dim); white-space: pre-wrap; max-height: 200px; overflow-y: auto; margin-top: 8px; display: none; }
+  .btn-ont-reset { background: #b35c00; color: #fff; border: none; width: 100%; padding: 9px; font-weight: 700; border-radius: 6px; cursor: pointer; font-family: 'Consolas', monospace; font-size: .9rem; transition: opacity .15s; margin-top: 6px; }
+  .btn-ont-reset:hover { opacity: .85; }
+  .btn-ont-reset:disabled { opacity: .35; cursor: default; }
+  .scan-result { background: var(--bg3); border: 1px solid var(--border); border-radius: 5px; padding: 6px 12px; margin: 3px 0; cursor: pointer; font-size: .83rem; transition: background .1s; }
+  .scan-result:hover { background: var(--bg4); border-color: var(--accent); }
+  .scan-result .proto-badge { display: inline-block; background: rgba(74,158,255,.15); color: var(--accent); border-radius: 3px; padding: 0 6px; font-size: .75rem; margin-left: 6px; }
 </style>
 </head>
 <body>
@@ -137,11 +153,139 @@
   <span class="brand"><i class="bi bi-shield-lock-fill"></i> OLT ONT / ONU Unlock Tool</span>
   <span class="badge-vendor" id="vendorBadge">Not connected</span>
   <span id="ontCountBadge" class="stat-pill ms-2" style="display:none"></span>
-  <span style="margin-left:auto; color:var(--dim); font-size:.78rem;">Network Administration Tool</span>
+  <!-- Tab switcher -->
+  <div style="margin-left:auto; display:flex; gap:6px;">
+    <button class="tab-btn active" id="tabOlt"  onclick="switchTab('olt')">
+      <i class="bi bi-diagram-3-fill"></i> OLT Manager
+    </button>
+    <button class="tab-btn" id="tabOnt" onclick="switchTab('ont')">
+      <i class="bi bi-router-fill"></i> Direct ONT
+    </button>
+  </div>
+</div>
+
+<!-- ══ DIRECT ONT PANEL ══════════════════════════════════════════════════════ -->
+<div id="panelOnt" style="display:none; flex:1; overflow:hidden; padding:16px; gap:16px; flex-direction:column;">
+
+  <div style="display:flex; gap:16px; flex:1; overflow:hidden;">
+
+    <!-- sidebar -->
+    <div class="sidebar" style="width:300px; flex-shrink:0;">
+      <h6><i class="bi bi-ethernet"></i> Direct ONT Connection</h6>
+      <p style="color:var(--dim);font-size:.78rem;margin:0 0 8px">
+        Connect a patch cable from the ONT's LAN port to your PC.<br>
+        Then enter the ONT's IP or auto-scan.
+      </p>
+
+      <div>
+        <label>ONT IP Address</label>
+        <input class="form-control" id="ontIp" placeholder="192.168.1.1 or any LAN IP">
+        <div style="display:flex;gap:4px;margin-top:4px">
+          <button class="btn-sm-action" style="flex:1" onclick="doOntScan(false)" id="btnOntScan">
+            <i class="bi bi-search"></i> Quick Scan
+          </button>
+          <button class="btn-sm-action" style="flex:1" onclick="doOntScan(true)" id="btnOntScanFull">
+            <i class="bi bi-grid-3x3-gap"></i> Full Subnet
+          </button>
+        </div>
+        <div id="scanResults" style="margin-top:6px;max-height:140px;overflow-y:auto"></div>
+      </div>
+      <div>
+        <label>Protocol</label>
+        <div class="proto-radio d-flex gap-3 mt-1">
+          <label><input type="radio" name="ontProto" value="telnet" checked> Telnet (23)</label>
+          <label><input type="radio" name="ontProto" value="ssh"> SSH (22)</label>
+        </div>
+      </div>
+      <div>
+        <label>Port <span style="color:var(--dim)">(auto-filled)</span></label>
+        <input class="form-control" id="ontPort" value="23">
+      </div>
+      <div>
+        <label>Username</label>
+        <input class="form-control" id="ontUser" placeholder="admin">
+      </div>
+      <div>
+        <label>Password</label>
+        <input class="form-control" id="ontPass" type="password" placeholder="admin">
+      </div>
+
+      <button class="btn-connect" id="btnOntConnect" onclick="doOntConnect(false)">
+        <i class="bi bi-plug-fill"></i> CONNECT
+      </button>
+      <button class="btn-sm-action" style="width:100%;padding:6px" onclick="doOntConnect(true)">
+        <i class="bi bi-magic"></i> Auto-connect (try all credentials)
+      </button>
+
+      <hr style="border-color:var(--border);margin:4px 0">
+
+      <!-- ONT status -->
+      <div class="ont-status-box" id="ontStatusBox">
+        <div style="color:var(--dim);font-size:.82rem">Not connected to any ONT directly</div>
+      </div>
+
+      <button class="btn-ont-reset" id="btnOntReset" disabled onclick="doOntReset()">
+        <i class="bi bi-arrow-counterclockwise"></i> FACTORY RESET THIS ONT
+      </button>
+
+      <button class="btn-sm-action" style="width:100%;padding:5px;margin-top:4px" onclick="doOntInfo()">
+        <i class="bi bi-info-circle"></i> Get Device Info
+      </button>
+      <button class="btn-disc" onclick="doOntDisconnect()">
+        <i class="bi bi-x-circle"></i> Disconnect
+      </button>
+
+      <hr style="border-color:var(--border);margin:4px 0">
+      <h6 style="cursor:pointer" onclick="toggleOntRaw()"><i class="bi bi-terminal-fill"></i> Raw Command</h6>
+      <div class="raw-panel" id="ontRawPanel">
+        <div class="d-flex gap-2">
+          <input class="raw-input" id="ontRawCmd" placeholder="e.g. show version" onkeydown="if(event.key==='Enter') sendOntRaw()">
+          <button class="btn-sm-action" onclick="sendOntRaw()">Send</button>
+        </div>
+        <div class="raw-output" id="ontRawOut"></div>
+      </div>
+    </div>
+
+    <!-- main content -->
+    <div style="flex:1;display:flex;flex-direction:column;gap:10px;overflow:hidden;">
+      <div style="color:var(--accent);font-size:1.1rem;font-weight:700">
+        <i class="bi bi-router-fill"></i> Direct ONT Access — Patch Cable
+      </div>
+
+      <!-- info box -->
+      <div class="ont-info-out" id="ontInfoOut" style="display:block;flex:1;max-height:100%">
+        <span style="color:var(--dim)">
+Connect your ONT via patch cable, then click CONNECT.
+
+How it works:
+  1. Plug LAN cable from ONT LAN port → your PC
+  2. Your PC gets IP from the ONT (e.g. 192.168.1.100)
+  3. ONT itself is usually at 192.168.1.1 or 192.168.100.1
+  4. Click Scan to auto-detect, or enter the IP manually
+  5. Connect → Factory Reset
+
+After factory reset:
+  • ONT reboots (30–60 seconds)
+  • All OMCI config is wiped
+  • ONT will register fresh on whichever OLT it connects to
+        </span>
+      </div>
+
+      <!-- log -->
+      <div class="log-section" style="flex-shrink:0">
+        <div class="log-header">
+          <span><i class="bi bi-journal-text"></i> Log</span>
+          <button class="btn-sm-action" onclick="clearOntLog()">Clear</button>
+        </div>
+        <div id="ontLog" style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;height:130px;overflow-y:auto;padding:8px 12px;font-size:.8rem;line-height:1.6"></div>
+      </div>
+    </div>
+
+  </div>
 </div>
 
 <!-- ══ MAIN LAYOUT ═══════════════════════════════════════════════════════════ -->
-<div class="main-layout">
+<div class="main-layout" id="panelOlt">
 
   <!-- ── SIDEBAR ─────────────────────────────────────────────────────────── -->
   <div class="sidebar">
@@ -672,6 +816,183 @@ async function post(url, data) {
 function getCookie(name) {
   const v = document.cookie.match('(^|;)\\s*'+name+'\\s*=\\s*([^;]+)');
   return v ? v.pop() : '';
+}
+
+// ═══════════════════════════════════════════════ Tab switcher ═══════════════
+function switchTab(tab) {
+  document.getElementById('panelOlt').style.display = tab === 'olt' ? 'flex' : 'none';
+  document.getElementById('panelOnt').style.display = tab === 'ont' ? 'flex' : 'none';
+  document.getElementById('tabOlt').classList.toggle('active', tab === 'olt');
+  document.getElementById('tabOnt').classList.toggle('active', tab === 'ont');
+}
+
+// ═══════════════════════════════════════════════ Direct ONT ══════════════════
+function ontLog(msg, cls='') {
+  const d = document.getElementById('ontLog');
+  const line = document.createElement('div');
+  if (cls) line.className = 'log-'+cls;
+  const ts = new Date().toLocaleTimeString();
+  line.textContent = `[${ts}] ${msg}`;
+  d.appendChild(line);
+  d.scrollTop = d.scrollHeight;
+}
+function clearOntLog() { document.getElementById('ontLog').innerHTML = ''; }
+
+// Auto-fill port when protocol changes
+document.querySelectorAll('input[name=ontProto]').forEach(r => {
+  r.addEventListener('change', () => {
+    document.getElementById('ontPort').value = r.value === 'ssh' ? '22' : '23';
+  });
+});
+
+async function doOntScan(fullSubnet) {
+  const label = fullSubnet ? 'full subnet (all 254 IPs)' : 'common ONT IPs';
+  ontLog(`Scanning ${label}…${fullSubnet ? ' (this may take 20–40 sec)' : ''}`, 'info');
+
+  const btn1 = document.getElementById('btnOntScan');
+  const btn2 = document.getElementById('btnOntScanFull');
+  btn1.disabled = true; btn2.disabled = true;
+  if (fullSubnet) {
+    btn2.innerHTML = '<span class="spin"></span> Scanning…';
+  } else {
+    btn1.innerHTML = '<span class="spin"></span>';
+  }
+
+  const t0 = Date.now();
+  try {
+    const res = await post('/api/ont/scan/', {full_subnet: fullSubnet});
+    const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
+    const div = document.getElementById('scanResults');
+    if (!res.ok || !res.results.length) {
+      div.innerHTML = '<div style="color:var(--warn);font-size:.8rem;margin-top:4px">No devices found. Enter IP manually.</div>';
+      ontLog(`Scan done in ${elapsed}s — nothing found.`, 'warn');
+    } else {
+      div.innerHTML = res.results.map(r =>
+        `<div class="scan-result" onclick="pickScanResult('${r.ip}','${r.port}','${r.protocol}')">
+          <strong>${r.ip}</strong>
+          <span class="proto-badge">${r.protocol.toUpperCase()}:${r.port}</span>
+        </div>`
+      ).join('');
+      ontLog(`Scan done in ${elapsed}s — found ${res.results.length} device(s): ${res.results.map(r=>r.ip).join(', ')}`, 'ok');
+    }
+  } catch(e) { ontLog('Scan error: '+e, 'err'); }
+  finally {
+    btn1.disabled = false; btn2.disabled = false;
+    btn1.innerHTML = '<i class="bi bi-search"></i> Quick Scan';
+    btn2.innerHTML = '<i class="bi bi-grid-3x3-gap"></i> Full Subnet';
+  }
+}
+
+function pickScanResult(ip, port, proto) {
+  document.getElementById('ontIp').value = ip;
+  document.getElementById('ontPort').value = port;
+  document.querySelector(`input[name=ontProto][value=${proto}]`).checked = true;
+  document.getElementById('scanResults').innerHTML = '';
+}
+
+async function doOntConnect(auto) {
+  const ip     = document.getElementById('ontIp').value.trim();
+  const port   = document.getElementById('ontPort').value.trim() || '23';
+  const user   = document.getElementById('ontUser').value.trim() || 'admin';
+  const pass   = document.getElementById('ontPass').value;
+  const proto  = document.querySelector('input[name=ontProto]:checked').value;
+
+  if (!ip) { ontLog('Enter ONT IP address first.', 'err'); return; }
+
+  ontLog(auto ? `Auto-connecting to ${ip} (trying all credentials)…` : `Connecting to ${ip}:${port} via ${proto.toUpperCase()}…`, 'info');
+  setBusy(true, 'btnOntConnect', '<span class="spin"></span> Connecting…');
+
+  try {
+    const res = await post('/api/ont/connect/', {
+      ip, port, username: user, password: pass, protocol: proto, auto,
+    });
+    if (!res.ok) { ontLog('ERROR: '+res.error, 'err'); return; }
+
+    const vLabel = res.vendor ? `${res.vendor.charAt(0).toUpperCase()+res.vendor.slice(1)}` : 'Unknown';
+    ontLog(`Connected! Vendor: ${vLabel}  |  User: ${res.username || user}`, 'ok');
+
+    const box = document.getElementById('ontStatusBox');
+    box.className = 'ont-status-box connected';
+    box.innerHTML = `
+      <div style="color:var(--success);font-weight:700"><i class="bi bi-check-circle-fill"></i> Connected</div>
+      <div style="color:var(--text);margin-top:4px">
+        <strong>IP:</strong> ${res.ip} &nbsp;
+        <strong>Protocol:</strong> ${(res.protocol||proto).toUpperCase()} &nbsp;
+        <strong>Vendor:</strong> ${vLabel}
+      </div>
+      <div style="color:var(--dim);font-size:.78rem;margin-top:4px">${(res.banner||'').substring(0,120).replace(/\n/g,' ')}</div>`;
+
+    document.getElementById('btnOntReset').disabled = false;
+    document.getElementById('ontInfoOut').textContent = res.banner || '';
+  } catch(e) { ontLog('Connection failed: '+e, 'err'); }
+  finally { setBusy(false, 'btnOntConnect', '<i class="bi bi-plug-fill"></i> CONNECT'); }
+}
+
+async function doOntInfo() {
+  ontLog('Fetching device info…', 'info');
+  try {
+    const res = await post('/api/ont/info/', {});
+    if (!res.ok) { ontLog('ERROR: '+res.error, 'err'); return; }
+    const out = document.getElementById('ontInfoOut');
+    out.style.display = 'block';
+    out.textContent = res.info || '(no output)';
+    ontLog('Device info retrieved.', 'ok');
+  } catch(e) { ontLog('Error: '+e, 'err'); }
+}
+
+async function doOntReset() {
+  const confirmed = confirm(
+    'FACTORY RESET this ONT?\n\n' +
+    '• All configuration will be wiped\n' +
+    '• ONT will reboot (30–60 seconds offline)\n' +
+    '• After reboot it will register fresh on any OLT\n\n' +
+    'Proceed?'
+  );
+  if (!confirmed) return;
+
+  ontLog('Sending factory reset command to ONT…', 'info');
+  document.getElementById('btnOntReset').disabled = true;
+
+  try {
+    const res = await post('/api/ont/reset/', {});
+    if (res.ok) {
+      ontLog('✓ '+res.message, 'ok');
+      ontLog(`Command used: ${res.command}`, 'dim');
+      if (res.output) {
+        const out = document.getElementById('ontInfoOut');
+        out.style.display = 'block';
+        out.textContent = res.output;
+      }
+      ontLog('ONT is rebooting — it will come back online in 30–60 seconds.', 'warn');
+    } else {
+      ontLog('✗ Reset failed: '+res.error, 'err');
+      document.getElementById('btnOntReset').disabled = false;
+    }
+  } catch(e) {
+    ontLog('Error: '+e, 'err');
+    document.getElementById('btnOntReset').disabled = false;
+  }
+}
+
+async function doOntDisconnect() {
+  await post('/api/ont/disconnect/', {});
+  const box = document.getElementById('ontStatusBox');
+  box.className = 'ont-status-box';
+  box.innerHTML = '<div style="color:var(--dim);font-size:.82rem">Not connected to any ONT directly</div>';
+  document.getElementById('btnOntReset').disabled = true;
+  ontLog('Disconnected.', 'dim');
+}
+
+function toggleOntRaw() { document.getElementById('ontRawPanel').classList.toggle('open'); }
+async function sendOntRaw() {
+  const cmd = document.getElementById('ontRawCmd').value.trim();
+  if (!cmd) return;
+  const out = document.getElementById('ontRawOut');
+  out.style.display = 'block'; out.textContent = 'Sending…';
+  try {
+    const res = await post('/api/ont/raw/', {command: cmd});
+    out.textContent = res.ok ? res.output : 'ERROR: '+res.error;
+  } catch(e) { out.textContent = 'Error: '+e; }
 }
 
 // Get CSRF token on load

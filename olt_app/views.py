@@ -187,3 +187,111 @@ def raw_command(request):
         return JsonResponse({'ok': True, 'output': out})
     except Exception as e:
         return JsonResponse({'ok': False, 'error': str(e)})
+
+
+# ══════════════════════════════════════════════ Direct ONT (patch cable) ═════
+
+from core.ont_direct import scan_for_onts
+
+
+@csrf_exempt
+@require_POST
+def ont_scan(request):
+    """Scan local network for ONT IPs responding on Telnet/SSH."""
+    data = json.loads(request.body) if request.body else {}
+    full = data.get('full_subnet', False)
+    try:
+        found = scan_for_onts(timeout=0.8, full_subnet=full)
+        return JsonResponse({'ok': True, 'results': found})
+    except Exception as e:
+        return JsonResponse({'ok': False, 'error': str(e)})
+
+
+@csrf_exempt
+@require_POST
+def ont_connect(request):
+    """Connect directly to ONT via patch cable."""
+    data     = json.loads(request.body)
+    ip       = data.get('ip', '').strip()
+    port     = int(data.get('port') or 23)
+    username = data.get('username', '').strip()
+    password = data.get('password', '')
+    protocol = data.get('protocol', 'telnet')
+    auto     = data.get('auto', False)
+
+    if not ip:
+        return JsonResponse({'ok': False, 'error': 'IP address required.'})
+
+    sid = _sid(request)
+    connections.remove_ont(sid)
+    ont = connections.get_or_create_ont(sid)
+
+    try:
+        if auto:
+            result = ont.auto_connect(ip)
+        else:
+            banner = ont.connect(ip, port, username, password, protocol)
+            result = {
+                'ok': True, 'ip': ip, 'port': port,
+                'protocol': protocol, 'username': username,
+                'vendor': ont.vendor, 'banner': banner[:300],
+            }
+        return JsonResponse(result)
+    except Exception as e:
+        connections.remove_ont(sid)
+        return JsonResponse({'ok': False, 'error': str(e)})
+
+
+@csrf_exempt
+@require_POST
+def ont_info(request):
+    """Get device info from directly connected ONT."""
+    sid = _sid(request)
+    ont = connections.get_ont(sid)
+    if not ont:
+        return JsonResponse({'ok': False, 'error': 'Not connected to any ONT directly.'})
+    try:
+        info = ont.get_info()
+        return JsonResponse({'ok': True, 'info': info, 'vendor': ont.vendor})
+    except Exception as e:
+        return JsonResponse({'ok': False, 'error': str(e)})
+
+
+@csrf_exempt
+@require_POST
+def ont_factory_reset(request):
+    """Send factory reset directly to ONT over patch cable connection."""
+    sid = _sid(request)
+    ont = connections.get_ont(sid)
+    if not ont:
+        return JsonResponse({'ok': False, 'error': 'Not connected to any ONT directly.'})
+    try:
+        result = ont.factory_reset()
+        return JsonResponse(result)
+    except Exception as e:
+        return JsonResponse({'ok': False, 'error': str(e)})
+
+
+@csrf_exempt
+@require_POST
+def ont_raw(request):
+    """Send a raw command to the directly connected ONT."""
+    data = json.loads(request.body)
+    cmd  = data.get('command', '')
+    sid  = _sid(request)
+    ont  = connections.get_ont(sid)
+    if not ont:
+        return JsonResponse({'ok': False, 'error': 'Not connected.'})
+    try:
+        out = ont.send_raw(cmd)
+        return JsonResponse({'ok': True, 'output': out})
+    except Exception as e:
+        return JsonResponse({'ok': False, 'error': str(e)})
+
+
+@csrf_exempt
+@require_POST
+def ont_disconnect(request):
+    sid = _sid(request)
+    connections.remove_ont(sid)
+    return JsonResponse({'ok': True})

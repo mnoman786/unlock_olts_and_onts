@@ -89,16 +89,32 @@ class OLTConnection:
         self._channel.settimeout(None)
         time.sleep(1.5)
 
+    _LOGIN_FAIL_RE = re.compile(
+        rb'wrong|failed|incorrect|denied|invalid|bad password|authentication fail',
+        re.IGNORECASE,
+    )
+    _LOGIN_OK_RE = re.compile(rb'[>#\$%]|\$\s*$|>\s*$|#\s*$', re.IGNORECASE)
+
     def _connect_telnet(self):
         tn = telnetlib.Telnet(self.host, self.port, timeout=self.timeout)
         # Handle login prompts
-        idx, _, data = tn.expect([b'[Uu]sername', b'[Ll]ogin', b'[Uu]ser'], timeout=10)
+        idx, _, _ = tn.expect([b'[Uu]sername', b'[Ll]ogin', b'[Uu]ser'], timeout=10)
         if idx >= 0:
             tn.write(self.username.encode('ascii') + b'\r\n')
-        idx, _, data = tn.expect([b'[Pp]assword'], timeout=10)
+        idx, _, _ = tn.expect([b'[Pp]assword'], timeout=10)
         if idx >= 0:
             tn.write(self.password.encode('ascii') + b'\r\n')
+        # Read response and check for login failure
         time.sleep(1.5)
+        try:
+            post = tn.read_very_eager()
+        except Exception:
+            post = b''
+        if self._LOGIN_FAIL_RE.search(post):
+            tn.close()
+            raise ConnectionError(
+                f"Login rejected by {self.host} — check username/password."
+            )
         self._telnet = tn
 
     # ------------------------------------------------------------------- send
