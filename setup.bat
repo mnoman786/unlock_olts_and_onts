@@ -45,7 +45,6 @@ call env\Scripts\activate.bat
 
 :: ── Install dependencies ───────────────────────────────
 echo [..] Installing dependencies...
-pip install --upgrade pip --quiet
 pip install -r requirements.txt --quiet
 if errorlevel 1 (
     echo [ERROR] Failed to install dependencies.
